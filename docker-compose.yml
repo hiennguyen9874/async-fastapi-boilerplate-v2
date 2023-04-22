@@ -1,0 +1,136 @@
+version: "3.3"
+
+services:
+  proxy:
+    image: traefik:v2.5
+    ports:
+      - "80:80"
+      - "8080:8080"
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+    networks:
+      - traefik-public
+    command:
+      #- "--log.level=DEBUG"
+      # Traefik will listen on port 8080 by default for API request.
+      - "--api.insecure=true"
+      # Enable Docker in Traefik, so that it reads labels from Docker services
+      - "--providers.docker=true"
+      # Add a constraint to only use services with the label "traefik.constraint-label=traefik-public"
+      # - "--providers.docker.constraints=Label(`traefik.constraint-label-stack`)"
+      # Do not expose all Docker services, only the ones explicitly exposed
+      - "--providers.docker.exposedbydefault=false"
+      # Create an entrypoint "http" listening on port 80
+      - "--entrypoints.${COMPOSE_PROJECT_NAME}_http.address=:80"
+      # Enable the access log, with HTTP requests
+      - --accesslog
+      # Enable the Traefik log, for configurations and errors
+      - --log
+      - --log.level=DEBUG
+      # Enable the Dashboard and API
+      - --api
+    labels:
+      # Enable Traefik for this service, to make it available in the public network
+      - traefik.enable=true
+      # Defines a default docker network to use for connections to all containers.
+      - traefik.docker.network=${COMPOSE_PROJECT_NAME}_traefik-public
+      # Use the custom label "traefik.constraint-label=traefik-public"
+      # This public Traefik will only use services with this label
+      # That way you can add other internal Traefik instances per stack if needed
+      # - traefik.constraint-label=traefik-public
+      # traefik-http the actual router using HTTP
+      - traefik.http.routers.${COMPOSE_PROJECT_NAME}_proxy.entrypoints=${COMPOSE_PROJECT_NAME}_http
+      # Define the port inside of the Docker service to use
+      - traefik.http.services.${COMPOSE_PROJECT_NAME}_proxy.loadbalancer.server.port=80
+
+  db:
+    image: postgres:14.0-alpine
+    volumes:
+      - app-db-data:/var/lib/postgresql/data/
+    networks:
+      - back
+    env_file:
+      - .env
+    environment:
+      - PGDATA=/var/lib/postgresql/data/pgdata
+    expose:
+      - 5432
+    restart: unless-stopped
+
+  rabbitmq:
+    image: rabbitmq:3.9.8-management-alpine
+    environment:
+      - RABBITMQ_DEFAULT_USER=admin
+      - RABBITMQ_DEFAULT_PASS=mypass
+    networks:
+      - back
+    expose:
+      - 5672
+      - 15672
+    restart: unless-stopped
+
+  redis:
+    image: redis:6.2.6-alpine
+    networks:
+      - back
+    expose:
+      - 6379
+    restart: unless-stopped
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.api
+    command: >
+      sh -c "wait-for-it.sh -t 5 db:5432 && wait-for-it.sh -t 5 redis:6379 && wait-for-it.sh -t 5 rabbitmq:5672; bash /start-reload.sh"
+    depends_on:
+      - db
+      - redis
+      - rabbitmq
+    networks:
+      - traefik-public
+      - back
+    env_file:
+      - .env
+    volumes:
+      - ./backend/app:/app
+    expose:
+      - 80
+    labels:
+      # Enable Traefik for this service, to make it available in the public network
+      - traefik.enable=true
+      # Defines a default docker network to use for connections to all containers.
+      - traefik.docker.network=${COMPOSE_PROJECT_NAME}_traefik-public
+      # traefik-http the actual router using HTTP
+      - traefik.http.routers.${COMPOSE_PROJECT_NAME}_api.rule=PathPrefix(`${APP_PREFIX}/api`) || PathPrefix(`${APP_PREFIX}/docs`) || PathPrefix(`${APP_PREFIX}/redoc`) || PathPrefix(`${APP_PREFIX}/openapi.json`)
+      - traefik.http.routers.${COMPOSE_PROJECT_NAME}_api.entrypoints=${COMPOSE_PROJECT_NAME}_http
+      # Define the port inside of the Docker service to use
+      - traefik.http.services.${COMPOSE_PROJECT_NAME}_api.loadbalancer.server.port=80
+    restart: unless-stopped
+
+  celery:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.worker
+    command: >
+      sh -c "wait-for-it.sh -t 5 db:5432 && wait-for-it.sh -t 5 redis:6379 && wait-for-it.sh -t 5 rabbitmq:5672 -- sleep 5; watchmedo auto-restart --directory ./app --pattern '*.py' --recursive -- bash /worker-start.sh"
+    depends_on:
+      - api
+      - db
+      - redis
+      - rabbitmq
+    networks:
+      - back
+    env_file:
+      - .env
+    volumes:
+      - ./backend/app:/app
+    restart: unless-stopped
+
+networks:
+  back:
+  traefik-public:
+
+
+volumes:
+  app-db-data:
