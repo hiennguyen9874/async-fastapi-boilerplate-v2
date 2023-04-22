@@ -1,0 +1,72 @@
+exclude: "(alembic)"
+
+repos:
+  - repo: https://github.com/PyCQA/autoflake
+    rev: v2.1.1
+    hooks:
+      - id: autoflake
+        args:
+          [
+            "--in-place",
+            "--remove-all-unused-imports",
+            "--remove-unused-variables",
+            "--ignore-init-module-imports",
+            "--remove-duplicate-keys",
+            "--recursive",
+          ]
+
+  - repo: https://github.com/PyCQA/isort
+    rev: 5.12.0
+    hooks:
+      - id: isort
+
+  - repo: https://github.com/ambv/black
+    rev: 23.3.0
+    hooks:
+      - id: black
+        args:
+          - --line-length=100
+          - --target-version=py38
+
+  - repo: https://github.com/PyCQA/flake8
+    rev: 6.0.0
+    hooks:
+      - id: flake8
+        additional_dependencies:
+          - flake8-bugbear
+          - flake8-bandit
+          - flake8-blind-except
+          - flake8-docstrings
+          - flake8-logging-format
+          - flake8-print
+
+  - repo: https://github.com/asottile/pyupgrade
+    rev: v3.3.1
+    hooks:
+      - id: pyupgrade
+
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.2.0
+    hooks:
+      - id: mypy
+        additional_dependencies:
+          - pydantic
+          - types-geoip2
+          - sqlalchemy-stubs
+          - types-pytz
+          - types-redis
+          - types-PyYAML
+          - types-aiofiles
+
+  - repo: https://github.com/pycqa/pylint
+    rev: v2.17.2
+    hooks:
+      - id: pylint
+        name: pylint
+        entry: pylint
+        language: system
+        types: [python]
+        args: [
+            "-rn", # Only display messages
+            "-sn", # Don't display the score
+          ]
