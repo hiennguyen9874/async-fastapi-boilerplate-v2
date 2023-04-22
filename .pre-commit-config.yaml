@@ -70,3 +70,5 @@ repos:
             "-rn", # Only display messages
             "-sn", # Don't display the score
           ]
+        additional_dependencies:
+          - pylint
