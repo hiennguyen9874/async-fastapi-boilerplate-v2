@@ -1,4 +1,4 @@
-from typing import Annotated, Any, List
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Body, Depends, HTTPException
 from fastapi.encoders import jsonable_encoder
@@ -15,7 +15,7 @@ CurrentUser = Annotated[models.User, Depends(deps.get_current_active_user)]
 CurrentSuperUser = Annotated[models.User, Depends(deps.get_current_active_superuser)]
 
 
-@router.get("/", response_model=List[schemas.User])
+@router.get("/", response_model=list[schemas.User])
 async def read_users(
     *,
     db: AsyncSession = Depends(deps.get_db),
@@ -71,7 +71,7 @@ async def update_user_me(
         user_in.full_name = full_name
     if email is not None:
         user_in.email = email
-    user = await usecase.user.update(db, db_obj=current_user, update_data=user_in.dict())
+    user = await usecase.user.update(db, db_obj=current_user, obj_in=user_in)
     return user
 
 
@@ -148,5 +148,5 @@ async def update_user(
             status_code=404,
             detail="The user with this username does not exist in the system",
         )
-    user = await usecase.user.update(db, db_obj=user, update_data=user_in.dict())
+    user = await usecase.user.update(db, db_obj=user, obj_in=user_in)
     return user

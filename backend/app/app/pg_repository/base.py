@@ -1,4 +1,4 @@
-from typing import Any, AsyncIterator, Generic, Type, TypeVar
+from typing import Any, Generic, Sequence, Type, TypeVar
 
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy import delete, func
@@ -27,7 +27,7 @@ class PgRepositoryBase(Generic[ModelType]):
         q = await db.execute(select(self.model).where(self.model.id == id))
         return q.scalars().one_or_none()
 
-    async def get_all(self, db: AsyncSession) -> AsyncIterator[ModelType]:
+    async def get_all(self, db: AsyncSession) -> Sequence[ModelType]:
         statement = select(self.model).order_by(self.model.id)
         q = await db.execute(statement)
         return q.scalars().all()
@@ -67,7 +67,7 @@ class PgRepositoryBase(Generic[ModelType]):
 
     async def get_multi(
         self, db: AsyncSession, *, offset: int = 0, limit: int = 100
-    ) -> AsyncIterator[ModelType]:
+    ) -> Sequence[ModelType]:
         statement = select(self.model).offset(offset).limit(limit).order_by(self.model.id)
         q = await db.execute(statement)
         return q.scalars().all()

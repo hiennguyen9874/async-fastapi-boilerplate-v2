@@ -52,11 +52,11 @@ repos:
         additional_dependencies:
           - pydantic
           - types-geoip2
-          - sqlalchemy-stubs
           - types-pytz
           - types-redis
           - types-PyYAML
           - types-aiofiles
+          - sqlalchemy
 
   - repo: https://github.com/pycqa/pylint
     rev: v2.17.2

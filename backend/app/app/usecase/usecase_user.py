@@ -6,10 +6,11 @@ from app.core.security import get_password_hash, verify_password
 from app.models.user import User
 from app.pg_repository.repository_user import PgRepositoryUser
 from app.pg_repository.repository_user import user as repository_user
+from app.schemas.user import UserCreate, UserUpdate
 from app.usecase.base import UseCaseBase
 
 
-class UseCaseUser(UseCaseBase[User, PgRepositoryUser]):
+class UseCaseUser(UseCaseBase[User, PgRepositoryUser, UserCreate, UserUpdate]):
     async def get_by_email(self, db: AsyncSession, *, email: str) -> User | None:
         return await self.repository.get_by_email(db=db, email=email)
 
@@ -19,25 +20,21 @@ class UseCaseUser(UseCaseBase[User, PgRepositoryUser]):
         return await self.repository.get_or_create_by_email(db=db, email=email, **kwargs)
 
     async def create(  # pylint: disable=arguments-differ
-        self,
-        db: AsyncSession,
-        *,
-        email: str,
-        password: str,
-        full_name: str = "",
-        is_active: bool = True,
-        is_superuser: bool = False,
+        self, db: AsyncSession, *, obj_in: UserCreate
     ) -> User:
         db_obj = self.model(  # type: ignore
-            email=email,
-            hashed_password=get_password_hash(password=password),
-            full_name=full_name,
-            is_active=is_active,
-            is_superuser=is_superuser,
+            email=obj_in.email,
+            hashed_password=get_password_hash(obj_in.password),
+            full_name=obj_in.full_name,
+            is_superuser=obj_in.is_superuser,
+            is_active=obj_in.is_active,
         )
         return await self.repository.create(db=db, db_obj=db_obj)
 
-    async def update(self, db: AsyncSession, db_obj: User, update_data: dict[str, Any]) -> User:
+    async def update(
+        self, db: AsyncSession, db_obj: User, obj_in: UserUpdate | dict[str, Any]
+    ) -> User:
+        update_data = obj_in if isinstance(obj_in, dict) else obj_in.dict(exclude_unset=True)
         if "password" in update_data and update_data["password"]:
             hashed_password = get_password_hash(update_data["password"])
             del update_data["password"]
