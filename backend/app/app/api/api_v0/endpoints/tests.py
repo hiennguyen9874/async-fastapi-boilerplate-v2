@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Any, Annotated
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends
 from loguru import logger
@@ -14,7 +14,7 @@ router = APIRouter()
 CurrentSuperUser = Annotated[models.User, Depends(deps.get_current_active_superuser)]
 
 
-@router.post("/test-celery", response_model=schemas.Msg, status_code=201)
+@router.post("/test-celery", response_model=schemas.SuccessfulResponse[schemas.Msg])
 async def test_celery(
     *,
     msg: schemas.Msg,
@@ -25,7 +25,7 @@ async def test_celery(
     """
     task = test_celery_task.delay(msg.msg)
     msg = task.get()
-    return {"msg": str(msg)}
+    return schemas.SuccessfulResponse(data={"msg": str(msg)}, status=schemas.Status.success)
 
 
 class LoguruLevel(str, Enum):

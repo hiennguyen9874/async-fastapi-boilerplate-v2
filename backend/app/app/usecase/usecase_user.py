@@ -41,11 +41,13 @@ class UseCaseUser(UseCaseBase[User, PgRepositoryUser, UserCreate, UserUpdate]):
             update_data["hashed_password"] = hashed_password
         return await self.repository.update(db=db, db_obj=db_obj, update_data=update_data)
 
-    async def authenticate(self, db: AsyncSession, *, email: str, password: str) -> User | None:
+    async def authenticate(
+        self, db: AsyncSession, *, email: str, password: str
+    ) -> tuple[User | None, bool]:
         obj = await self.get_by_email(db=db, email=email)
         if not obj:
-            return None
-        return obj if verify_password(password, obj.hashed_password) else None
+            return None, False
+        return (obj, True) if verify_password(password, obj.hashed_password) else (None, True)
 
 
 user = UseCaseUser(User, repository_user)

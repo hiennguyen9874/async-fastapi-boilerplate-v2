@@ -1,6 +1,6 @@
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Body, Depends, HTTPException
+from fastapi import APIRouter, Body, Depends, HTTPException, status
 from fastapi.encoders import jsonable_encoder
 from pydantic.networks import EmailStr
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,7 +15,7 @@ CurrentUser = Annotated[models.User, Depends(deps.get_current_active_user)]
 CurrentSuperUser = Annotated[models.User, Depends(deps.get_current_active_superuser)]
 
 
-@router.get("/", response_model=list[schemas.User])
+@router.get("/", response_model=schemas.SuccessfulResponse[list[schemas.User]])
 async def read_users(
     *,
     db: AsyncSession = Depends(deps.get_db),
@@ -26,10 +26,13 @@ async def read_users(
     """
     Retrieve users.
     """
-    return await usecase.user.get_multi(db, offset=skip, limit=limit)
+    return schemas.SuccessfulResponse(
+        data=await usecase.user.get_multi(db, offset=skip, limit=limit),
+        status=schemas.Status.success,
+    )
 
 
-@router.post("/", response_model=schemas.User)
+@router.post("/", response_model=schemas.SuccessfulResponse[schemas.User])
 async def create_user(
     *,
     db: AsyncSession = Depends(deps.get_db),
@@ -42,16 +45,16 @@ async def create_user(
     user = await usecase.user.get_by_email(db, email=user_in.email)
     if user:
         raise HTTPException(
-            status_code=400,
-            detail="The user with this username already exists in the system.",
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="The user with this username already exists in the system",
         )
     user = await usecase.user.create(db, **user_in.dict())
 
     # TODO: Send email # pylint: disable=fixme
-    return user
+    return schemas.SuccessfulResponse(data=user, status=schemas.Status.success)
 
 
-@router.put("/me", response_model=schemas.User)
+@router.put("/me", response_model=schemas.SuccessfulResponse[schemas.User])
 async def update_user_me(
     *,
     db: AsyncSession = Depends(deps.get_db),
@@ -72,10 +75,10 @@ async def update_user_me(
     if email is not None:
         user_in.email = email
     user = await usecase.user.update(db, db_obj=current_user, obj_in=user_in)
-    return user
+    return schemas.SuccessfulResponse(data=user, status=schemas.Status.success)
 
 
-@router.get("/me", response_model=schemas.User)
+@router.get("/me", response_model=schemas.SuccessfulResponse[schemas.User])
 async def read_user_me(
     *,
     current_user: CurrentUser,
@@ -83,10 +86,10 @@ async def read_user_me(
     """
     Get current user.
     """
-    return current_user
+    return schemas.SuccessfulResponse(data=current_user, status=schemas.Status.success)
 
 
-@router.post("/open", response_model=schemas.User)
+@router.post("/open", response_model=schemas.SuccessfulResponse[schemas.User])
 async def create_user_open(
     *,
     db: AsyncSession = Depends(deps.get_db),
@@ -99,21 +102,21 @@ async def create_user_open(
     """
     if not settings.USER.OPEN_REGISTRATION:
         raise HTTPException(
-            status_code=403,
+            status_code=status.HTTP_403_FORBIDDEN,
             detail="Open user registration is forbidden on this server",
         )
     user = await usecase.user.get_by_email(db, email=email)
     if user:
         raise HTTPException(
-            status_code=400,
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="The user with this username already exists in the system",
         )
     user_in = schemas.UserCreate(password=password, email=email, full_name=full_name)
     user = await usecase.user.create(db, **user_in.dict())
-    return user
+    return schemas.SuccessfulResponse(data=user, status=schemas.Status.success)
 
 
-@router.get("/{user_id}", response_model=schemas.User)
+@router.get("/{user_id}", response_model=schemas.SuccessfulResponse[schemas.User])
 async def read_user_by_id(
     *,
     db: AsyncSession = Depends(deps.get_db),
@@ -125,13 +128,15 @@ async def read_user_by_id(
     """
     user = await usecase.user.get(db, id=user_id)
     if user == current_user:
-        return user
+        return schemas.SuccessfulResponse(data=user, status=schemas.Status.success)
     if not current_user.is_superuser:
-        raise HTTPException(status_code=400, detail="The user doesn't have enough privileges")
-    return user
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="The user doesn't have enough privileges"
+        )
+    return schemas.SuccessfulResponse(data=user, status=schemas.Status.success)
 
 
-@router.put("/{user_id}", response_model=schemas.User)
+@router.put("/{user_id}", response_model=schemas.SuccessfulResponse[schemas.User])
 async def update_user(
     *,
     db: AsyncSession = Depends(deps.get_db),
@@ -145,8 +150,8 @@ async def update_user(
     user = await usecase.user.get(db, id=user_id)
     if not user:
         raise HTTPException(
-            status_code=404,
+            status_code=status.HTTP_404_NOT_FOUND,
             detail="The user with this username does not exist in the system",
         )
     user = await usecase.user.update(db, db_obj=user, obj_in=user_in)
-    return user
+    return schemas.SuccessfulResponse(data=user, status=schemas.Status.success)
