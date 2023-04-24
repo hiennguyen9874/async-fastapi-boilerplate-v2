@@ -43,7 +43,6 @@ flake8-docstrings = "^1.7.0"
 flake8-logging-format = "^0.9.0"
 flake8-print = "^5.0.0"
 autoflake = "^2.1.1"
-sqlalchemy-stubs = "^0.4"
 bandit = "^1.7.5"
 types-pytz = "^2023.3.0.0"
 
