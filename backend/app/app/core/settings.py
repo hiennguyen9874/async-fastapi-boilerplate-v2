@@ -28,8 +28,11 @@ class CelerySettings(BaseModel):
 
 class JwtSettings(BaseModel):
     ALGORITHM: str = "HS256"
-    SECRET_KEY: str
+    ACCESS_TOKEN_SECRET_KEY: str
     ACCESS_TOKEN_EXPIRE_DURATION: int = 60 * 24 * 8
+
+    REFRESH_TOKEN_SECRET_KEY: str
+    REFRESH_TOKEN_EXPIRE_DURATION: int = 60 * 24 * 8
 
 
 class PostgresSettings(BaseModel):

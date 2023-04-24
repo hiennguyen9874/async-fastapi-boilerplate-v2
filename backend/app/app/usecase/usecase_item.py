@@ -19,7 +19,7 @@ class UseCaseItem(UseCaseBase[Item, PgRepositoryItem, ItemCreate, ItemUpdate]):
         offset: int = 0,
         limit: int = 100,
     ) -> Sequence[Item]:
-        return await self.repository.get_multi_by_owner(
+        return await self.pg_repository.get_multi_by_owner(
             db=db, owner_id=owner_id, offset=offset, limit=limit
         )
 
@@ -28,7 +28,7 @@ class UseCaseItem(UseCaseBase[Item, PgRepositoryItem, ItemCreate, ItemUpdate]):
     ) -> Item:
         obj_in_data = jsonable_encoder(obj_in)
         db_obj = self.model(**obj_in_data, owner_id=owner_id)  # type: ignore
-        return await self.repository.create(db=db, db_obj=db_obj)
+        return await self.pg_repository.create(db=db, db_obj=db_obj)
 
 
 item = UseCaseItem(Item, repository_item)
