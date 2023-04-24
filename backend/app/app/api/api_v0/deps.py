@@ -1,12 +1,11 @@
 from typing import AsyncGenerator
 
-from fastapi import Depends, HTTPException, status
+import redis.asyncio as redis
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
-from jose import exceptions, jwt
-from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app import models, schemas, usecase
+from app import models, usecase
 from app.core.settings import settings
 from app.db.session import async_session
 
@@ -22,25 +21,26 @@ async def get_db() -> AsyncGenerator:
         await session.commit()
 
 
+async def get_redis(request: Request) -> redis.Redis:
+    """
+    Dependency function that yields redis connection
+    """
+    if not hasattr(request.app.state, "connection"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="connection attribute not set on app state",
+        )
+    return request.app.state.connection
+
+
 async def get_current_user(
     db: AsyncSession = Depends(get_db), token: str = Depends(reusable_oauth2)
 ) -> models.User:
-    try:
-        payload = jwt.decode(token, settings.JWT.SECRET_KEY, algorithms=[settings.JWT.ALGORITHM])
-        token_data = schemas.TokenPayload(**payload)
-    except (exceptions.JWTError, ValidationError) as e:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Could not validate credentials",
-        ) from e
+    user_id = usecase.user.parse_id_from_token(
+        token=token, secret_key=settings.JWT.ACCESS_TOKEN_SECRET_KEY
+    )
 
-    if not token_data.sub:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Could not validate credentials",
-        )
-
-    user = await usecase.user.get(db=db, id=token_data.sub)
+    user = await usecase.user.get(db=db, id=user_id)
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 

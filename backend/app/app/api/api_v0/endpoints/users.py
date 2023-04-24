@@ -1,5 +1,6 @@
 from typing import Annotated, Any
 
+import redis.asyncio as redis
 from fastapi import APIRouter, Body, Depends, HTTPException, status
 from fastapi.encoders import jsonable_encoder
 from pydantic.networks import EmailStr
@@ -58,6 +59,7 @@ async def create_user(
 async def update_user_me(
     *,
     db: AsyncSession = Depends(deps.get_db),
+    connection: redis.Redis = Depends(deps.get_redis),
     password: str = Body(None),
     full_name: str = Body(None),
     email: EmailStr = Body(None),
@@ -74,7 +76,9 @@ async def update_user_me(
         user_in.full_name = full_name
     if email is not None:
         user_in.email = email
-    user = await usecase.user.update(db, db_obj=current_user, obj_in=user_in)
+    user = await usecase.user.update(
+        db=db, connection=connection, db_obj=current_user, obj_in=user_in
+    )
     return schemas.SuccessfulResponse(data=user, status=schemas.Status.success)
 
 
@@ -140,6 +144,7 @@ async def read_user_by_id(
 async def update_user(
     *,
     db: AsyncSession = Depends(deps.get_db),
+    connection: redis.Redis = Depends(deps.get_redis),
     user_id: int,
     user_in: schemas.UserUpdate,
     current_user: CurrentSuperUser,  # pylint: disable=unused-argument
@@ -153,5 +158,5 @@ async def update_user(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="The user with this username does not exist in the system",
         )
-    user = await usecase.user.update(db, db_obj=user, obj_in=user_in)
+    user = await usecase.user.update(db=db, connection=connection, db_obj=user, obj_in=user_in)
     return schemas.SuccessfulResponse(data=user, status=schemas.Status.success)

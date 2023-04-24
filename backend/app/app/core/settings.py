@@ -91,6 +91,12 @@ class UserSettings(BaseModel):
     OPEN_REGISTRATION: bool = False
 
 
+class RedisSettings(BaseModel):
+    HOST: str
+    DB: int
+    PORT: int
+
+
 class Settings(BaseSettings):
     APP: AppSettings
     CELERY: CelerySettings
@@ -100,6 +106,7 @@ class Settings(BaseSettings):
     FIRST_SUPERUSER: FirstUserSuperSettings
     SENTRY: SentrySettings = SentrySettings()
     USER: UserSettings = UserSettings()
+    REDIS: RedisSettings
 
     class Config:
         case_sensitive = True

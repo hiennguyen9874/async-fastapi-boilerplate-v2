@@ -1,6 +1,9 @@
 from datetime import timedelta
 from typing import Any, Type
 
+from jose import exceptions, jwt
+from pydantic import ValidationError
+from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import create_token, get_password_hash, verify_password
@@ -12,6 +15,7 @@ from app.redis_repository.repository_user import RedisRepositoryUser
 from app.redis_repository.repository_user import user as redis_repository_user
 from app.schemas.user import UserCreate, UserUpdate
 from app.usecase.base import UseCaseBase
+from app.utils import errors
 
 
 class UseCaseUser(UseCaseBase[User, PgRepositoryUser, UserCreate, UserUpdate]):
@@ -28,6 +32,15 @@ class UseCaseUser(UseCaseBase[User, PgRepositoryUser, UserCreate, UserUpdate]):
     def _generate_redis_refresh_token(id: int) -> str:  # pylint: disable=redefined-builtin
         return f"RefreshToken:{id}"
 
+    async def delete(self, db: AsyncSession, connection: Redis, db_obj: User) -> User:
+        obj = await self.pg_repository.delete(db=db, db_obj=db_obj)
+
+        await self.redis_repository.delete(
+            connection=connection, key=self._generate_redis_refresh_token(db_obj.id)
+        )
+
+        return obj
+
     async def get_by_email(self, db: AsyncSession, *, email: str) -> User | None:
         return await self.pg_repository.get_by_email(db=db, email=email)
 
@@ -36,9 +49,7 @@ class UseCaseUser(UseCaseBase[User, PgRepositoryUser, UserCreate, UserUpdate]):
     ) -> tuple[User, bool]:
         return await self.pg_repository.get_or_create_by_email(db=db, email=email, **kwargs)
 
-    async def create(  # pylint: disable=arguments-differ
-        self, db: AsyncSession, *, obj_in: UserCreate
-    ) -> User:
+    async def create(self, db: AsyncSession, *, obj_in: UserCreate) -> User:
         db_obj = self.model(  # type: ignore
             email=obj_in.email,
             hashed_password=get_password_hash(obj_in.password),
@@ -49,22 +60,20 @@ class UseCaseUser(UseCaseBase[User, PgRepositoryUser, UserCreate, UserUpdate]):
         return await self.pg_repository.create(db=db, db_obj=db_obj)
 
     async def update(
-        self, db: AsyncSession, db_obj: User, obj_in: UserUpdate | dict[str, Any]
+        self, db: AsyncSession, connection: Redis, db_obj: User, obj_in: UserUpdate | dict[str, Any]
     ) -> User:
         update_data = obj_in if isinstance(obj_in, dict) else obj_in.dict(exclude_unset=True)
         if "password" in update_data and update_data["password"]:
             hashed_password = get_password_hash(update_data["password"])
             del update_data["password"]
             update_data["hashed_password"] = hashed_password
-        return await self.pg_repository.update(db=db, db_obj=db_obj, update_data=update_data)
+        obj = await self.pg_repository.update(db=db, db_obj=db_obj, update_data=update_data)
 
-    async def authenticate(
-        self, db: AsyncSession, *, email: str, password: str
-    ) -> tuple[User | None, bool]:
-        obj = await self.get_by_email(db=db, email=email)
-        if not obj:
-            return None, False
-        return (obj, True) if verify_password(password, obj.hashed_password) else (None, True)
+        await self.redis_repository.delete(
+            connection=connection, key=self._generate_redis_refresh_token(db_obj.id)
+        )
+
+        return obj
 
     def create_token(self, id: int) -> tuple[str, str]:  # pylint: disable=redefined-builtin
         access_token = create_token(
@@ -78,6 +87,89 @@ class UseCaseUser(UseCaseBase[User, PgRepositoryUser, UserCreate, UserUpdate]):
             expires_delta=timedelta(minutes=settings.JWT.REFRESH_TOKEN_EXPIRE_DURATION),
         )
         return access_token, refresh_token
+
+    async def sign_in(
+        self, db: AsyncSession, connection: Redis, *, email: str, password: str
+    ) -> tuple[str, str, User]:
+        obj = await self.get_by_email(db=db, email=email)
+        if not obj:
+            raise errors.ErrNotFound("user not found")
+
+        if not verify_password(password, obj.hashed_password):
+            raise errors.ErrWrongPassword("wrong password")
+
+        if not obj.is_active:
+            raise errors.ErrInactiveUser("inactive user")
+
+        access_token, refresh_token = self.create_token(obj.id)
+
+        await self.redis_repository.set_add(
+            connection=connection,
+            key=self._generate_redis_refresh_token(obj.id),
+            value=refresh_token,
+        )
+
+        return access_token, refresh_token, obj
+
+    def parse_id_from_token(self, token: str, secret_key: str) -> int:
+        try:
+            token_data = jwt.decode(token, secret_key, algorithms=[settings.JWT.ALGORITHM])
+        except (exceptions.JWTError, ValidationError) as e:
+            raise errors.ErrInvalidJWTToken("could not validate credentials") from e
+
+        if "sub" not in token_data and token_data["sub"] is None:
+            raise errors.ErrInvalidJWTToken("could not validate credentials")
+
+        return int(token_data["sub"])
+
+    async def refresh_token(
+        self, db: AsyncSession, connection: Redis, *, refresh_token: str
+    ) -> tuple[str, str, User]:
+        obj_id = self.parse_id_from_token(
+            token=refresh_token, secret_key=settings.JWT.REFRESH_TOKEN_SECRET_KEY
+        )
+
+        if not await self.redis_repository.set_is_member(
+            connection=connection,
+            key=self._generate_redis_refresh_token(obj_id),
+            value=refresh_token,
+        ):
+            raise errors.ErrNotFoundRefreshTokenRedis("not found refresh token in redis")
+
+        await self.redis_repository.set_delete(
+            connection=connection,
+            key=self._generate_redis_refresh_token(obj_id),
+            value=refresh_token,
+        )
+
+        obj = await self.get(db=db, id=obj_id)
+        if obj is None:
+            raise errors.ErrNotFound("not found user")
+
+        access_token, refresh_token = self.create_token(obj.id)
+
+        await self.redis_repository.set_add(
+            connection=connection,
+            key=self._generate_redis_refresh_token(obj.id),
+            value=refresh_token,
+        )
+
+        return access_token, refresh_token, obj
+
+    async def logout(self, connection: Redis, refresh_token: str) -> None:
+        obj_id = self.parse_id_from_token(
+            token=refresh_token, secret_key=settings.JWT.REFRESH_TOKEN_SECRET_KEY
+        )
+        await self.redis_repository.set_delete(
+            connection=connection,
+            key=self._generate_redis_refresh_token(obj_id),
+            value=refresh_token,
+        )
+
+    async def logout_all(self, connection: Redis, obj_id: int) -> None:
+        await self.redis_repository.delete(
+            connection=connection, key=self._generate_redis_refresh_token(obj_id)
+        )
 
 
 user = UseCaseUser(User, pg_repository_user, redis_repository_user)

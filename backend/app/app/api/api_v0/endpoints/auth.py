@@ -1,6 +1,7 @@
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, status
+import redis.asyncio as redis
+from fastapi import APIRouter, Depends
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,28 +13,17 @@ router = APIRouter()
 
 @router.post("/access-token", response_model=schemas.Token)
 async def login_access_token(
+    *,
     db: AsyncSession = Depends(deps.get_db),
+    connection: redis.Redis = Depends(deps.get_redis),
     form_data: OAuth2PasswordRequestForm = Depends(),
 ) -> Any:
     """
     OAuth2 compatible token login, get an access token for future requests
     """
-    user, found_user = await usecase.user.authenticate(
-        db, email=form_data.username, password=form_data.password
+    access_token, refresh_token, _ = await usecase.user.sign_in(
+        db=db, connection=connection, email=form_data.username, password=form_data.password
     )
-
-    if not found_user:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
-
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Incorrect email or password"
-        )
-
-    if not user.is_active:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Inactive user")
-
-    access_token, refresh_token = usecase.user.create_token(user.id)
 
     return {
         "access_token": access_token,

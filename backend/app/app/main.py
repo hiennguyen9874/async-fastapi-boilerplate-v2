@@ -1,6 +1,7 @@
 from functools import partial
 from pathlib import Path
 
+import redis.asyncio as redis
 import sentry_sdk
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import HTTPException, RequestValidationError
@@ -20,11 +21,19 @@ if settings.SENTRY.DSN is not None:
 
 
 async def startup(app: FastAPI) -> None:  # pylint: disable=unused-argument,redefined-outer-name
-    pass
+    app.state.connection = await redis.Redis(
+        host=settings.REDIS.HOST,
+        port=settings.REDIS.PORT,
+        db=settings.REDIS.DB,
+        decode_responses=True,
+    )
+
+    if not await app.state.connection.ping():
+        raise RuntimeError("Can not connect to redis server")
 
 
 async def shutdown(app: FastAPI) -> None:  # pylint: disable=unused-argument,redefined-outer-name
-    pass
+    await app.state.connection.close()
 
 
 def create_app() -> FastAPI:
