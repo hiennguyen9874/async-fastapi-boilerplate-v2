@@ -24,8 +24,8 @@ async def test_celery(
     Test Celery worker.
     """
     task = test_celery_task.delay(msg.msg)
-    task.get()
-    return {"msg": "Word received"}
+    msg = task.get()
+    return {"msg": str(msg)}
 
 
 class LoguruLevel(str, Enum):
