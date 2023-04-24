@@ -13,6 +13,7 @@ from app.utils import TZDateTime
 if TYPE_CHECKING:
     from .user import User  # noqa: F401
 
+__all__ = ['Item']
 
 class Item(Base):
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
