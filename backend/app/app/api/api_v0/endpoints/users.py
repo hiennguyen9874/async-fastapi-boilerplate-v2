@@ -97,7 +97,7 @@ async def create_user_open(
     """
     Create new user without the need to be logged in.
     """
-    if not settings.USER_OPEN_REGISTRATION:
+    if not settings.USER.OPEN_REGISTRATION:
         raise HTTPException(
             status_code=403,
             detail="Open user registration is forbidden on this server",

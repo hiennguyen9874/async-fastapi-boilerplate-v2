@@ -9,10 +9,10 @@ from app.core.celery_app import celery_app
 from app.core.settings import settings
 from app.custom_logging import CustomizeLogger
 
-if settings.SENTRY_DSN is not None:
+if settings.SENTRY.DSN is not None:
     sentry_sdk.init(
-        settings.SENTRY_DSN,
-        environment=settings.SENTRY_ENVIRONMENT,
+        settings.SENTRY.DSN,
+        environment=settings.SENTRY.ENVIRONMENT,
         integrations=[CeleryIntegration()],
     )
 

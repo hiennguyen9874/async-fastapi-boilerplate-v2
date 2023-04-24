@@ -26,7 +26,7 @@ async def get_current_user(
     db: AsyncSession = Depends(get_db), token: str = Depends(reusable_oauth2)
 ) -> models.User:
     try:
-        payload = jwt.decode(token, settings.JWT_SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
+        payload = jwt.decode(token, settings.JWT.SECRET_KEY, algorithms=[settings.JWT.ALGORITHM])
         token_data = schemas.TokenPayload(**payload)
     except (exceptions.JWTError, ValidationError) as e:
         raise HTTPException(
