@@ -17,11 +17,11 @@ import os  # noqa: E402
 
 
 def get_url() -> str:
-    host = os.getenv("POSTGRES_HOST", "db")
-    port = os.getenv("POSTGRES_PORT", "5432")
-    db = os.getenv("POSTGRES_DB", "app")
-    user = os.getenv("POSTGRES_USER", "postgres")
-    password = os.getenv("POSTGRES_PASSWORD", "")
+    host = os.getenv("POSTGRES__HOST", "db")
+    port = os.getenv("POSTGRES__PORT", "5432")
+    db = os.getenv("POSTGRES__DB", "app")
+    user = os.getenv("POSTGRES__USER", "postgres")
+    password = os.getenv("POSTGRES__PASSWORD", "")
 
     return f"postgresql://{user}:{password}@{host}:{port}/{db}"
 

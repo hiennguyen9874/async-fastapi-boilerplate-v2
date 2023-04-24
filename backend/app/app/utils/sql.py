@@ -25,6 +25,6 @@ class TZDateTime(TypeDecorator):
     def process_result_value(self, value: datetime | None, dialect: Dialect) -> Any:
         if value is not None:
             value = value.replace(tzinfo=timezone.utc).astimezone(
-                pytz.timezone(settings.APP_TIMEZONE)
+                pytz.timezone(settings.APP.TIMEZONE)
             )
         return value

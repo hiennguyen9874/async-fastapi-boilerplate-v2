@@ -15,15 +15,15 @@ async def init_db(db: AsyncSession) -> None:
     # the tables un-commenting the next line
     # Base.metadata.create_all(bind=engine)
 
-    user = await usecase.user.get_by_email(db, email=settings.FIRST_SUPERUSER_EMAIL)
+    user = await usecase.user.get_by_email(db, email=settings.FIRST_SUPERUSER.EMAIL)
 
     if not user:
         user = await usecase.user.create(
             db=db,
             obj_in=schemas.UserCreate(
-                email=settings.FIRST_SUPERUSER_EMAIL,
-                password=settings.FIRST_SUPERUSER_PASSWORD,
-                full_name=settings.FIRST_SUPERUSER_NAME,
+                email=settings.FIRST_SUPERUSER.EMAIL,
+                password=settings.FIRST_SUPERUSER.PASSWORD,
+                full_name=settings.FIRST_SUPERUSER.NAME,
                 is_superuser=True,
             ),
         )
