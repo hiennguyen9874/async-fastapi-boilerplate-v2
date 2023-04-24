@@ -2,7 +2,7 @@ from functools import partial
 from pathlib import Path
 
 import sentry_sdk
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, status
 from fastapi.exceptions import HTTPException, RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -57,9 +57,11 @@ async def validation_exception_handler(  # pylint: disable=unused-argument
     # Override request validation exceptions
     return JSONResponse(
         content=ValidationErrorResponse(
-            status=Status.error, error=Error(code=400, message=exc.errors()), data=None
+            status=Status.error,
+            error=Error(code=status.HTTP_400_BAD_REQUEST, message=exc.errors()),
+            data=None,
         ).dict(),
-        status_code=400,
+        status_code=status.HTTP_400_BAD_REQUEST,
     )
 
 
