@@ -14,11 +14,11 @@ def create_access_token(subject: str | Any, expires_delta: timedelta | None = No
         expire = datetime.now(timezone.utc) + expires_delta
     else:
         expire = datetime.now(timezone.utc) + timedelta(
-            minutes=settings.JWT_ACCESS_TOKEN_EXPIRE_DURATION
+            minutes=settings.JWT.ACCESS_TOKEN_EXPIRE_DURATION
         )
 
     to_encode = {"exp": expire, "sub": str(subject)}
-    return jwt.encode(to_encode, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
+    return jwt.encode(to_encode, settings.JWT.SECRET_KEY, algorithm=settings.JWT.ALGORITHM)
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:

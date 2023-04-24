@@ -31,7 +31,7 @@ async def login_access_token(
     if not user.is_active:
         raise HTTPException(status_code=400, detail="Inactive user")
 
-    access_token_expires = timedelta(minutes=settings.JWT_ACCESS_TOKEN_EXPIRE_DURATION)
+    access_token_expires = timedelta(minutes=settings.JWT.ACCESS_TOKEN_EXPIRE_DURATION)
 
     return {
         "access_token": security.create_access_token(user.id, expires_delta=access_token_expires),
