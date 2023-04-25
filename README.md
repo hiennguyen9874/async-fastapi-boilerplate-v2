@@ -16,4 +16,7 @@
 
 ## TODO
 
+-   Forgot password
+-   Verify account
+
 ## Acknowledgements

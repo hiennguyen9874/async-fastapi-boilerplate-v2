@@ -35,10 +35,6 @@ jobs:
           python -m pip freeze --local
         shell: bash
 
-      - name: Pre-commit install hooks
-        run: |
-          pre-commit install-hooks
-
       - name: Cache
         uses: actions/cache@v3
         with:
