@@ -57,6 +57,7 @@ autolabeler:
   - label: "skip-changelog"
     branch:
       - "develop"
+      - "feat"
 
 exclude-labels:
   - "skip-changelog"
