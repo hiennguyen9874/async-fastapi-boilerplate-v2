@@ -83,7 +83,7 @@ jobs:
         uses: docker/build-push-action@v4
         with:
           context: ./backend
-          file: Dockerfile.api
+          file: ./backend/Dockerfile.api
           push: true
           tags: ${{ steps.meta.outputs.tags }}
 
@@ -130,7 +130,7 @@ jobs:
         uses: docker/build-push-action@v4
         with:
           context: ./backend
-          file: Dockerfile.worker
+          file: ./backend/Dockerfile.worker
           push: true
           tags: ${{ steps.meta.outputs.tags }}
 
