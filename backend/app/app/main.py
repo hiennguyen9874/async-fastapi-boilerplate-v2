@@ -1,6 +1,7 @@
 from functools import partial
 from pathlib import Path
 
+import redis.asyncio as redis
 import sentry_sdk
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import HTTPException, RequestValidationError
@@ -14,21 +15,30 @@ from app.core.settings import settings
 from app.custom_logging import CustomizeLogger
 from app.schemas.response import Error, ErrorResponse, Status, ValidationErrorResponse
 from app.signals import *  # noqa # pylint: disable=wildcard-import
+from app.utils.errors import ErrException
 
 if settings.SENTRY.DSN is not None:
     sentry_sdk.init(settings.SENTRY.DSN, environment=settings.SENTRY.ENVIRONMENT)
 
 
-async def startup(app: FastAPI) -> None:  # pylint: disable=unused-argument,redefined-outer-name
-    pass
+async def startup(app: FastAPI) -> None:  # pylint: disable=unused-argument
+    app.state.connection = await redis.Redis(
+        host=settings.REDIS.HOST,
+        port=settings.REDIS.PORT,
+        db=settings.REDIS.DB,
+        decode_responses=True,
+    )
+
+    if not await app.state.connection.ping():
+        raise RuntimeError("Can not connect to redis server")
 
 
-async def shutdown(app: FastAPI) -> None:  # pylint: disable=unused-argument,redefined-outer-name
-    pass
+async def shutdown(app: FastAPI) -> None:  # pylint: disable=unused-argument
+    await app.state.connection.close()
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(  # pylint: disable=redefined-outer-name
+    app = FastAPI(
         title=settings.APP.NAME,
         version=settings.APP.VERSION,
         openapi_url=f"{settings.APP.PREFIX}/openapi.json",
@@ -82,6 +92,24 @@ async def http_exception_handler(  # pylint: disable=unused-argument
     )
 
 
+app.add_exception_handler(HTTPException, http_exception_handler)
+
+
+async def error_exception_handler(
+    request: Request, exc: ErrException  # pylint: disable=unused-argument
+) -> JSONResponse:
+    return JSONResponse(
+        content=ErrorResponse(
+            status=Status.error,
+            error=Error(code=exc.status_code, message=str(exc.msg)),
+            data=None,
+        ).dict(),
+        status_code=exc.status_code,
+    )
+
+
+app.add_exception_handler(ErrException, error_exception_handler)
+
 origins = ["*"]
 
 app.add_middleware(
@@ -92,6 +120,5 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.add_exception_handler(HTTPException, http_exception_handler)
 
 app.include_router(api_router_v0, prefix=f"{settings.APP.PREFIX}/api/v0")

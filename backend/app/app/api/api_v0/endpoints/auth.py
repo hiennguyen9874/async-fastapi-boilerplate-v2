@@ -1,45 +1,33 @@
-from datetime import timedelta
-from typing import Any
+from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, HTTPException, status
+import redis.asyncio as redis
+from fastapi import APIRouter, Depends, Header, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import models, schemas, usecase
 from app.api.api_v0 import deps
-from app.core import security
-from app.core.settings import settings
 
 router = APIRouter()
 
 
 @router.post("/access-token", response_model=schemas.Token)
 async def login_access_token(
+    *,
     db: AsyncSession = Depends(deps.get_db),
+    connection: redis.Redis = Depends(deps.get_redis),
     form_data: OAuth2PasswordRequestForm = Depends(),
 ) -> Any:
     """
     OAuth2 compatible token login, get an access token for future requests
     """
-    user, found_user = await usecase.user.authenticate(
-        db, email=form_data.username, password=form_data.password
+    access_token, refresh_token, _ = await usecase.user.sign_in(
+        db=db, connection=connection, email=form_data.username, password=form_data.password
     )
 
-    if not found_user:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
-
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Incorrect email or password"
-        )
-
-    if not user.is_active:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Inactive user")
-
-    access_token_expires = timedelta(minutes=settings.JWT.ACCESS_TOKEN_EXPIRE_DURATION)
-
     return {
-        "access_token": security.create_access_token(user.id, expires_delta=access_token_expires),
+        "access_token": access_token,
+        "refresh_token": refresh_token,
         "token_type": "bearer",
     }
 
@@ -51,4 +39,40 @@ async def test_token(current_user: models.User = Depends(deps.get_current_user))
     """
     # return current_user
 
-    return schemas.SuccessfulResponse(data=current_user, status=schemas.Status.success)
+    return schemas.create_successful_response(current_user)
+
+
+@router.get("/refresh", response_model=schemas.Token)
+async def refresh_token(
+    *,
+    db: AsyncSession = Depends(deps.get_db),
+    connection: redis.Redis = Depends(deps.get_redis),
+    refresh_token: Annotated[str, Header()],
+) -> Any:
+    access_token, refresh_token, _ = await usecase.user.refresh_token(
+        db=db, connection=connection, refresh_token=refresh_token
+    )
+
+    return {
+        "access_token": access_token,
+        "refresh_token": refresh_token,
+        "token_type": "bearer",
+    }
+
+
+@router.get("/logout", status_code=status.HTTP_204_NO_CONTENT)
+async def logout(
+    *,
+    connection: redis.Redis = Depends(deps.get_redis),
+    refresh_token: Annotated[str, Header()],
+) -> None:
+    await usecase.user.logout(connection=connection, refresh_token=refresh_token)
+
+
+@router.get("/logout-all", status_code=status.HTTP_204_NO_CONTENT)
+async def logout_all(
+    *,
+    connection: redis.Redis = Depends(deps.get_redis),
+    refresh_token: Annotated[str, Header()],
+) -> None:
+    await usecase.user.logout_all_with_token(connection=connection, refresh_token=refresh_token)

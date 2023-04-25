@@ -20,7 +20,7 @@ class User(Base):
     is_active: Mapped[bool] = mapped_column(default=True)
     is_superuser: Mapped[bool] = mapped_column(default=False)
     email: Mapped[str] = mapped_column(unique=True, index=True, nullable=False)
-    hashed_password: Mapped[str | None] = mapped_column(nullable=True)
+    hashed_password: Mapped[str] = mapped_column(nullable=True)
     full_name: Mapped[str | None] = mapped_column(index=False, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         TZDateTime, default=func.now()  # pylint: disable=not-callable
