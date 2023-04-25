@@ -13,9 +13,10 @@ from app.pg_repository.repository_user import PgRepositoryUser
 from app.pg_repository.repository_user import user as pg_repository_user
 from app.redis_repository.repository_user import RedisRepositoryUser
 from app.redis_repository.repository_user import user as redis_repository_user
-from app.schemas.user import UserCreate, UserUpdate
+from app.schemas.user import UserCreate, UserInDB, UserUpdate
 from app.usecase.base import UseCaseBase
 from app.utils import errors
+from app.utils.encoders import jsonable_encoder_sqlalchemy
 
 
 class UseCaseUser(UseCaseBase[User, PgRepositoryUser, UserCreate, UserUpdate]):
@@ -29,11 +30,48 @@ class UseCaseUser(UseCaseBase[User, PgRepositoryUser, UserCreate, UserUpdate]):
         self.redis_repository = redis_repository
 
     @staticmethod
+    def _generate_redis_user(id: int) -> str:  # pylint: disable=redefined-builtin
+        return f"Cache:User:{id}"
+
+    @staticmethod
     def _generate_redis_refresh_token(id: int) -> str:  # pylint: disable=redefined-builtin
         return f"RefreshToken:{id}"
 
+    async def create_cache(self, connection: Redis, db_obj: User) -> None:
+        user_in_db = UserInDB.from_orm(db_obj)
+        await self.redis_repository.create(
+            connection=connection, key=self._generate_redis_user(db_obj.id), value=user_in_db.json()
+        )
+
+    async def get_cache(self, connection: Redis, obj_id: int) -> User | None:
+        db_obj = await self.redis_repository.get(
+            connection=connection, key=self._generate_redis_user(obj_id)
+        )
+        if not db_obj:
+            return None
+        user_in_db = UserInDB.parse_raw(db_obj)
+        obj_in_data = jsonable_encoder_sqlalchemy(user_in_db)
+        db_obj = User(**obj_in_data)  # type: ignore
+        return db_obj
+
+    async def get(
+        self, db: AsyncSession, connection: Redis, id: int  # pylint: disable=redefined-builtin
+    ) -> User | None:
+        cached_user = await self.get_cache(connection=connection, obj_id=id)
+        if cached_user is not None:
+            return cached_user
+        obj = await self.pg_repository.get(db=db, id=id)
+        if not obj:
+            return None
+        await self.create_cache(connection=connection, db_obj=obj)
+        return obj
+
     async def delete(self, db: AsyncSession, connection: Redis, db_obj: User) -> User:
         obj = await self.pg_repository.delete(db=db, db_obj=db_obj)
+
+        await self.redis_repository.delete(
+            connection=connection, key=self._generate_redis_user(db_obj.id)
+        )
 
         await self.redis_repository.delete(
             connection=connection, key=self._generate_redis_refresh_token(db_obj.id)
@@ -68,6 +106,10 @@ class UseCaseUser(UseCaseBase[User, PgRepositoryUser, UserCreate, UserUpdate]):
             del update_data["password"]
             update_data["hashed_password"] = hashed_password
         obj = await self.pg_repository.update(db=db, db_obj=db_obj, update_data=update_data)
+
+        await self.redis_repository.delete(
+            connection=connection, key=self._generate_redis_user(db_obj.id)
+        )
 
         await self.redis_repository.delete(
             connection=connection, key=self._generate_redis_refresh_token(db_obj.id)
@@ -142,7 +184,7 @@ class UseCaseUser(UseCaseBase[User, PgRepositoryUser, UserCreate, UserUpdate]):
             value=refresh_token,
         )
 
-        obj = await self.get(db=db, id=obj_id)
+        obj = await self.get(db=db, connection=connection, id=obj_id)
         if obj is None:
             raise errors.ErrNotFound("not found user")
 

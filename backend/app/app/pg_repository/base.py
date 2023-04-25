@@ -1,12 +1,12 @@
 from typing import Any, Generic, Sequence, Type, TypeVar
 
-from fastapi.encoders import jsonable_encoder
 from sqlalchemy import delete, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.sql import Select
 
 from app.db.base_class import Base
+from app.utils.encoders import jsonable_encoder_sqlalchemy
 
 ModelType = TypeVar("ModelType", bound=Base)
 
@@ -56,7 +56,7 @@ class PgRepositoryBase(Generic[ModelType]):
     async def update(
         self, db: AsyncSession, *, db_obj: ModelType, update_data: dict[str, Any]
     ) -> ModelType:
-        obj_data = jsonable_encoder(db_obj)
+        obj_data = jsonable_encoder_sqlalchemy(db_obj)
         for field in obj_data:
             if field in update_data:
                 setattr(db_obj, field, update_data[field])

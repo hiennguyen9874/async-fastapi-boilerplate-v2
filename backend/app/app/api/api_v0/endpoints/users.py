@@ -2,7 +2,6 @@ from typing import Annotated, Any
 
 import redis.asyncio as redis
 from fastapi import APIRouter, Body, Depends
-from fastapi.encoders import jsonable_encoder
 from pydantic.networks import EmailStr
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -10,6 +9,7 @@ from app import models, schemas, usecase
 from app.api.api_v0 import deps
 from app.core.settings import settings
 from app.utils import errors
+from app.utils.encoders import jsonable_encoder_sqlalchemy
 
 router = APIRouter()
 
@@ -65,7 +65,7 @@ async def update_user_me(
     """
     Update own user.
     """
-    current_user_data = jsonable_encoder(current_user)
+    current_user_data = jsonable_encoder_sqlalchemy(current_user)
     user_in = schemas.UserUpdate(**current_user_data)
     if password is not None:
         user_in.password = password
@@ -115,13 +115,14 @@ async def create_user_open(
 async def read_user_by_id(
     *,
     db: AsyncSession = Depends(deps.get_db),
+    connection: redis.Redis = Depends(deps.get_redis),
     user_id: int,
     current_user: CurrentUser,
 ) -> Any:
     """
     Get a specific user by id.
     """
-    user = await usecase.user.get(db, id=user_id)
+    user = await usecase.user.get(db=db, connection=connection, id=user_id)
     if not user:
         raise errors.ErrNotFound("user not found")
     if user.id == current_user.id:
@@ -143,7 +144,7 @@ async def update_user(
     """
     Update a user.
     """
-    user = await usecase.user.get(db, id=user_id)
+    user = await usecase.user.get(db=db, connection=connection, id=user_id)
     if not user:
         raise errors.ErrNotFound("user not found")
     user = await usecase.user.update(db=db, connection=connection, db_obj=user, obj_in=user_in)
