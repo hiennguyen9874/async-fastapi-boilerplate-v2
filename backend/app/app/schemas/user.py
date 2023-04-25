@@ -1,4 +1,4 @@
-from typing import Optional
+from datetime import datetime
 
 from pydantic import BaseModel, EmailStr
 
@@ -7,10 +7,10 @@ __all__ = ["UserBase", "UserCreate", "UserLogin", "UserUpdate", "UserInDBBase", 
 
 # Shared properties
 class UserBase(BaseModel):
-    email: Optional[EmailStr] = None
-    is_active: Optional[bool] = True
+    email: EmailStr | None = None
+    is_active: bool | None = True
     is_superuser: bool = False
-    full_name: Optional[str] = None
+    full_name: str | None = None
 
 
 # Properties to receive via API on creation
@@ -27,11 +27,17 @@ class UserLogin(BaseModel):
 
 # Properties to receive via API on update
 class UserUpdate(UserBase):
-    password: Optional[str] = None
+    password: str | None = None
 
 
 class UserInDBBase(UserBase):
-    id: Optional[int] = None
+    id: int
+    is_active: bool
+    is_superuser: bool
+    email: EmailStr
+    full_name: str
+    created_at: datetime
+    updated_at: datetime
 
     class Config:
         orm_mode = True
