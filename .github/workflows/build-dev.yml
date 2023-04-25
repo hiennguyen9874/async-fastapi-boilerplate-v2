@@ -45,7 +45,7 @@ jobs:
           commit_message: "[Github Action] Change version -> ${{ needs.gen_version.outputs.version }}"
           branch: ${{ github.ref }}
 
-  build:
+  build-api:
     needs: [gen_version, commit_new_version]
 
     permissions:
@@ -68,7 +68,54 @@ jobs:
         uses: docker/metadata-action@v4
         with:
           images: |
-            ghcr.io/${{ github.repository }}
+            ghcr.io/${{ github.repository }}/api
+          tags: |
+            type=raw,priority=200,prefix=,suffix=,value=${{ needs.gen_version.outputs.version }}
+
+      - name: Log in to the Container registry
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          file: Dockerfile.dev
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+
+      - name: Output variable
+        id: output
+        run: |
+          echo "docker_tags=${{ join(fromJSON(steps.meta.outputs.json).tags, ', ') }}" >> "$GITHUB_OUTPUT"
+
+  build-worker:
+    needs: [gen_version, commit_new_version]
+
+    permissions:
+      contents: read
+      packages: write
+
+    runs-on: ubuntu-latest
+
+    outputs:
+      docker_tags: ${{ steps.output.outputs.docker_tags }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ github.ref }}
+
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v4
+        with:
+          images: |
+            ghcr.io/${{ github.repository }}/worker
           tags: |
             type=raw,priority=200,prefix=,suffix=,value=${{ needs.gen_version.outputs.version }}
 
@@ -93,7 +140,7 @@ jobs:
           echo "docker_tags=${{ join(fromJSON(steps.meta.outputs.json).tags, ', ') }}" >> "$GITHUB_OUTPUT"
 
   tag:
-    needs: [gen_version, build]
+    needs: [gen_version, build-api, build-worker]
 
     permissions:
       contents: write
