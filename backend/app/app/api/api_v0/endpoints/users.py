@@ -1,7 +1,7 @@
 from typing import Annotated, Any
 
 import redis.asyncio as redis
-from fastapi import APIRouter, Body, Depends, HTTPException, status
+from fastapi import APIRouter, Body, Depends
 from fastapi.encoders import jsonable_encoder
 from pydantic.networks import EmailStr
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app import models, schemas, usecase
 from app.api.api_v0 import deps
 from app.core.settings import settings
+from app.utils import errors
 
 router = APIRouter()
 
@@ -27,9 +28,8 @@ async def read_users(
     """
     Retrieve users.
     """
-    return schemas.SuccessfulResponse(
-        data=await usecase.user.get_multi(db, offset=skip, limit=limit),
-        status=schemas.Status.success,
+    return schemas.create_successful_response(
+        await usecase.user.get_multi(db, offset=skip, limit=limit)
     )
 
 
@@ -45,14 +45,11 @@ async def create_user(
     """
     user = await usecase.user.get_by_email(db, email=user_in.email)
     if user:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="The user with this username already exists in the system",
-        )
+        raise errors.ErrExistsEmail("email already exists")
     user = await usecase.user.create(db, **user_in.dict())
 
     # TODO: Send email # pylint: disable=fixme
-    return schemas.SuccessfulResponse(data=user, status=schemas.Status.success)
+    return schemas.create_successful_response(user)
 
 
 @router.put("/me", response_model=schemas.SuccessfulResponse[schemas.User])
@@ -79,7 +76,7 @@ async def update_user_me(
     user = await usecase.user.update(
         db=db, connection=connection, db_obj=current_user, obj_in=user_in
     )
-    return schemas.SuccessfulResponse(data=user, status=schemas.Status.success)
+    return schemas.create_successful_response(user)
 
 
 @router.get("/me", response_model=schemas.SuccessfulResponse[schemas.User])
@@ -90,7 +87,7 @@ async def read_user_me(
     """
     Get current user.
     """
-    return schemas.SuccessfulResponse(data=current_user, status=schemas.Status.success)
+    return schemas.create_successful_response(current_user)
 
 
 @router.post("/open", response_model=schemas.SuccessfulResponse[schemas.User])
@@ -105,19 +102,13 @@ async def create_user_open(
     Create new user without the need to be logged in.
     """
     if not settings.USER.OPEN_REGISTRATION:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Open user registration is forbidden on this server",
-        )
+        raise errors.ErrApiDisable("open user registration not enable")
     user = await usecase.user.get_by_email(db, email=email)
     if user:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="The user with this username already exists in the system",
-        )
+        raise errors.ErrExistsEmail("email already exists")
     user_in = schemas.UserCreate(password=password, email=email, full_name=full_name)
     user = await usecase.user.create(db, **user_in.dict())
-    return schemas.SuccessfulResponse(data=user, status=schemas.Status.success)
+    return schemas.create_successful_response(user)
 
 
 @router.get("/{user_id}", response_model=schemas.SuccessfulResponse[schemas.User])
@@ -131,13 +122,13 @@ async def read_user_by_id(
     Get a specific user by id.
     """
     user = await usecase.user.get(db, id=user_id)
-    if user == current_user:
-        return schemas.SuccessfulResponse(data=user, status=schemas.Status.success)
+    if not user:
+        raise errors.ErrNotFound("user not found")
+    if user.id == current_user.id:
+        return schemas.create_successful_response(user)
     if not current_user.is_superuser:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="The user doesn't have enough privileges"
-        )
-    return schemas.SuccessfulResponse(data=user, status=schemas.Status.success)
+        raise errors.ErrNotEnoughPrivileges("not enough permissions")
+    return schemas.create_successful_response(user)
 
 
 @router.put("/{user_id}", response_model=schemas.SuccessfulResponse[schemas.User])
@@ -154,9 +145,6 @@ async def update_user(
     """
     user = await usecase.user.get(db, id=user_id)
     if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="The user with this username does not exist in the system",
-        )
+        raise errors.ErrNotFound("user not found")
     user = await usecase.user.update(db=db, connection=connection, db_obj=user, obj_in=user_in)
-    return schemas.SuccessfulResponse(data=user, status=schemas.Status.success)
+    return schemas.create_successful_response(user)

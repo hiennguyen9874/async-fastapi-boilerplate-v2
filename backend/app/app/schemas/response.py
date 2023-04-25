@@ -8,7 +8,7 @@ DataT = TypeVar("DataT")
 ErrorT = TypeVar("ErrorT")
 
 
-__all__ = ["Error", "Status", "ErrorResponse", "SuccessfulResponse"]
+__all__ = ["Error", "Status", "ErrorResponse", "SuccessfulResponse", "create_successful_response"]
 
 
 class Error(BaseModel, Generic[ErrorT]):
@@ -40,3 +40,7 @@ class SuccessfulResponse(GenericModel, Generic[DataT]):
     status: Status = Field(Status.success)
     data: DataT | None = None
     error: Any | None = Field(None, example="null")
+
+
+def create_successful_response(data: DataT) -> SuccessfulResponse[DataT]:
+    return SuccessfulResponse(data=data, status=Status.success, error=None)

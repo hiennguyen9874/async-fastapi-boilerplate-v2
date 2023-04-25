@@ -72,7 +72,7 @@ class ErrNotEnoughPrivileges(ErrException):
 
 class ErrNotFoundRefreshTokenRedis(ErrException):
     def __init__(self, msg: str):
-        super().__init__(status_code=401, status_text="not_found_refresh_token_redis", msg=msg)
+        super().__init__(status_code=401, status_text="not_found_refresh_token", msg=msg)
 
 
 class ErrUserAlreadyVerified(ErrException):
@@ -98,3 +98,13 @@ class ErrCallRequest(ErrException):
 class ErrReadBodyRequest(ErrException):
     def __init__(self, msg: str):
         super().__init__(status_code=400, status_text="read_body_request_error", msg=msg)
+
+
+class ErrExistsEmail(ErrException):
+    def __init__(self, msg: str):
+        super().__init__(status_code=400, status_text="email_exists", msg=msg)
+
+
+class ErrApiDisable(ErrException):
+    def __init__(self, msg: str):
+        super().__init__(status_code=403, status_text="api_disable", msg=msg)

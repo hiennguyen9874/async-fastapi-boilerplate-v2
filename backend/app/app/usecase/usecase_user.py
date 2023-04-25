@@ -134,7 +134,7 @@ class UseCaseUser(UseCaseBase[User, PgRepositoryUser, UserCreate, UserUpdate]):
             key=self._generate_redis_refresh_token(obj_id),
             value=refresh_token,
         ):
-            raise errors.ErrNotFoundRefreshTokenRedis("not found refresh token in redis")
+            raise errors.ErrNotFoundRefreshTokenRedis("not found refresh token")
 
         await self.redis_repository.set_delete(
             connection=connection,
@@ -169,6 +169,14 @@ class UseCaseUser(UseCaseBase[User, PgRepositoryUser, UserCreate, UserUpdate]):
     async def logout_all(self, connection: Redis, obj_id: int) -> None:
         await self.redis_repository.delete(
             connection=connection, key=self._generate_redis_refresh_token(obj_id)
+        )
+
+    async def logout_all_with_token(self, connection: Redis, refresh_token: str) -> None:
+        await self.logout_all(
+            connection=connection,
+            obj_id=self.parse_id_from_token(
+                token=refresh_token, secret_key=settings.JWT.REFRESH_TOKEN_SECRET_KEY
+            ),
         )
 
 

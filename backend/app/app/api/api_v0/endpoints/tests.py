@@ -25,7 +25,7 @@ async def test_celery(
     """
     task = test_celery_task.delay(msg.msg)
     msg = task.get()
-    return schemas.SuccessfulResponse(data={"msg": str(msg)}, status=schemas.Status.success)
+    return schemas.create_successful_response(data={"msg": str(msg)})
 
 
 class LoguruLevel(str, Enum):
