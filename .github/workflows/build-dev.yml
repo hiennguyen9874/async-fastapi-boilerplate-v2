@@ -82,8 +82,8 @@ jobs:
       - name: Build and push Docker image
         uses: docker/build-push-action@v4
         with:
-          context: .
-          file: Dockerfile.dev
+          context: backend
+          file: Dockerfile.api
           push: true
           tags: ${{ steps.meta.outputs.tags }}
 
@@ -129,8 +129,8 @@ jobs:
       - name: Build and push Docker image
         uses: docker/build-push-action@v4
         with:
-          context: .
-          file: Dockerfile.dev
+          context: backend
+          file: Dockerfile.worker
           push: true
           tags: ${{ steps.meta.outputs.tags }}
 
