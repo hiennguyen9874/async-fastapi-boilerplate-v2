@@ -39,9 +39,6 @@ class UseCaseBase(Generic[ModelType, PgRepositoryType, CreateSchemaType, UpdateS
     ) -> None:
         await self.pg_repository.delete_by_id(db=db, id=id)
 
-    async def delete_all(self, db: AsyncSession) -> None:
-        await self.pg_repository.delete_all(db=db)
-
     async def update(
         self, db: AsyncSession, db_obj: ModelType, obj_in: UpdateSchemaType | dict[str, Any]
     ) -> ModelType:

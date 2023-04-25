@@ -79,6 +79,17 @@ class UseCaseUser(UseCaseBase[User, PgRepositoryUser, UserCreate, UserUpdate]):
 
         return obj
 
+    async def delete_by_id(
+        self, db: AsyncSession, connection: Redis, id: int  # pylint: disable=redefined-builtin
+    ) -> None:
+        await self.pg_repository.delete_by_id(db=db, id=id)
+
+        await self.redis_repository.delete(connection=connection, key=self._generate_redis_user(id))
+
+        await self.redis_repository.delete(
+            connection=connection, key=self._generate_redis_refresh_token(id)
+        )
+
     async def get_by_email(self, db: AsyncSession, *, email: str) -> User | None:
         return await self.pg_repository.get_by_email(db=db, email=email)
 
