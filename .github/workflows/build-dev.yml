@@ -70,7 +70,7 @@ jobs:
         uses: actions/cache@v2
         with:
           path: /tmp/.buildx-cache
-          key: ${{ runner.os }}-buildx-api-${{ github.sha }}-${{ hashFiles('./backend/Dockerfile.api') }}
+          key: ${{ runner.os }}-buildx-api-${{ github.sha }}
           restore-keys: |
             ${{ runner.os }}-buildx-api-
 
@@ -135,7 +135,7 @@ jobs:
         uses: actions/cache@v2
         with:
           path: /tmp/.buildx-cache
-          key: ${{ runner.os }}-buildx-worker-${{ github.sha }}-${{ hashFiles('./backend/Dockerfile.api') }}
+          key: ${{ runner.os }}-buildx-worker-${{ github.sha }}
           restore-keys: |
             ${{ runner.os }}-buildx-worker-
 
