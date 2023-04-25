@@ -1,6 +1,5 @@
 from typing import Sequence
 
-from fastapi.encoders import jsonable_encoder
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Item
@@ -8,6 +7,7 @@ from app.pg_repository.repository_item import item as repository_item
 from app.pg_repository.repository_item import PgRepositoryItem
 from app.schemas.item import ItemCreate, ItemUpdate
 from app.usecase.base import UseCaseBase
+from app.utils.encoders import jsonable_encoder_sqlalchemy
 
 
 class UseCaseItem(UseCaseBase[Item, PgRepositoryItem, ItemCreate, ItemUpdate]):
@@ -26,7 +26,7 @@ class UseCaseItem(UseCaseBase[Item, PgRepositoryItem, ItemCreate, ItemUpdate]):
     async def create_with_owner(
         self, db: AsyncSession, *, obj_in: ItemCreate, owner_id: int
     ) -> Item:
-        obj_in_data = jsonable_encoder(obj_in)
+        obj_in_data = jsonable_encoder_sqlalchemy(obj_in)
         db_obj = self.model(**obj_in_data, owner_id=owner_id)  # type: ignore
         return await self.pg_repository.create(db=db, db_obj=db_obj)
 

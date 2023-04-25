@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from pydantic import BaseModel, EmailStr
 
 __all__ = ["UserBase", "UserCreate", "UserLogin", "UserUpdate", "UserInDBBase", "User", "UserInDB"]
@@ -29,7 +31,13 @@ class UserUpdate(UserBase):
 
 
 class UserInDBBase(UserBase):
-    id: int | None = None
+    id: int
+    is_active: bool
+    is_superuser: bool
+    email: EmailStr
+    full_name: str
+    created_at: datetime
+    updated_at: datetime
 
     class Config:
         orm_mode = True

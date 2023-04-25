@@ -32,13 +32,15 @@ async def get_redis(request: Request) -> redis.Redis:
 
 
 async def get_current_user(
-    db: AsyncSession = Depends(get_db), token: str = Depends(reusable_oauth2)
+    db: AsyncSession = Depends(get_db),
+    connection: redis.Redis = Depends(get_redis),
+    token: str = Depends(reusable_oauth2),
 ) -> models.User:
     user_id = usecase.user.parse_id_from_token(
         token=token, secret_key=settings.JWT.ACCESS_TOKEN_SECRET_KEY
     )
 
-    user = await usecase.user.get(db=db, id=user_id)
+    user = await usecase.user.get(db=db, connection=connection, id=user_id)
     if not user:
         raise errors.ErrNotFound("user not found")
 
