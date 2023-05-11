@@ -1,0 +1,6 @@
+{
+    "name": "Codespaces Python Template Repository",
+    "build": {
+        "dockerfile": "Dockerfile"
+    }
+}
