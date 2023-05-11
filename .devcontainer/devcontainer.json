@@ -2,7 +2,5 @@
     "name": "Codespaces Python Template Repository",
     "dockerComposeFile": "docker-compose.yml",
     "service": "app",
-    "workspaceFolder": "/workspace",
-    "settings": {},
-    "extensions": [],
+    "workspaceFolder": "/workspace"
 }
